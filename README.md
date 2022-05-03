@@ -9,7 +9,7 @@ _このプラグインは実験的です_
 ## インストール
 
 - WinMergeをインストールした先の、`MergePlugins`ディレクトリ内にDLLをコピーしてください。
-- WinMergeをインストールする際、アーカイブサポートと有効にしていなければ`7z.dll`をダウンロードし、`CbzDiffPlugin.dll`と同じディレクトリにコピーしてください。
+- WinMergeをインストールする際、アーカイブサポートと有効にしていなければ[`7z.dll`をダウンロード](https://sevenzip.osdn.jp/download.html)し、`CbzDiffPlugin.dll`と同じディレクトリにコピーしてください。
 
 ## 注意事項
 
