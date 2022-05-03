@@ -1,0 +1,7 @@
+; CbzDiffPlugin.def : Declares the module parameters.
+
+LIBRARY 
+
+EXPORTS
+	DllCanUnloadNow     PRIVATE
+	DllGetClassObject   PRIVATE

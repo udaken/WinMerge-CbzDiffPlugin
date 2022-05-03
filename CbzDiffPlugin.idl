@@ -1,0 +1,60 @@
+// CbzDiffPlugin.idl : IDL source for CbzDiffPlugin.dll
+//
+
+// This file will be processed by the MIDL tool to
+// produce the type library (CbzDiffPlugin.tlb) and marshalling code.
+
+import "oaidl.idl";
+import "ocidl.idl";
+[
+	object,
+	uuid(7C37C1C6-FD13-4285-857D-35FAED278EC3),
+	dual,
+	helpstring("IWinMergeScript Interface"),
+	pointer_default(unique)
+]
+interface IWinMergeScript : IDispatch
+{
+	[propget, id(1), helpstring("property PluginEvent")] HRESULT PluginEvent([out, retval] BSTR* pVal);
+	[propget, id(2), helpstring("property PluginDescription")] HRESULT PluginDescription([out, retval] BSTR* pVal);
+	[propget, id(3), helpstring("property PluginFileFilters")] HRESULT PluginFileFilters([out, retval] BSTR* pVal);
+	[propget, id(4), helpstring("property PluginIsAutomatic")] HRESULT PluginIsAutomatic([out, retval] VARIANT_BOOL* pVal);
+	[propget, id(98), helpstring("property PluginExtendedProperties")] HRESULT PluginExtendedProperties([out, retval] BSTR* pVal);
+	[propget, id(99), helpstring("property PluginUnpackedFileExtension")] HRESULT PluginUnpackedFileExtension([out, retval] BSTR* pVal);
+	// PREDIFFING
+	//[id(5), helpstring("method PrediffBufferW")] HRESULT PrediffBufferW([in] BSTR* pText, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [out, retval] VARIANT_BOOL* pbHandled);
+	// BUFFER_PACK_UNPACK
+	//[id(7), helpstring("method UnpackBufferA")] HRESULT UnpackBufferA([in] SAFEARRAY** pBuffer, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [in] INT* pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
+	//[id(8), helpstring("method PackBufferA")] HRESULT PackBufferA([in] SAFEARRAY** pBuffer, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [in] INT subcode, [out, retval] VARIANT_BOOL* pbSuccess);
+	// FILE_PACK_UNPACK
+	[id(5), helpstring("method UnpackFile")] HRESULT UnpackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT * pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
+	[id(7), helpstring("method PackFile")] HRESULT PackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
+	// FILE_FOLDER_PACK_UNPACK
+	//[id(11), helpstring("method IsFolder")] HRESULT IsFolder([in] BSTR file, [out, retval] VARIANT_BOOL* pbSuccess);
+	//[id(12), helpstring("method UnpackFolder")] HRESULT UnpackFolder([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL* pbChanged, INT* pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
+	//[id(13), helpstring("method PackFolder")] HRESULT PackFolder([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL* pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
+
+
+	[id(6), helpstring("method ShowSettingsDialog")] HRESULT ShowSettingsDialog([out, retval] VARIANT_BOOL* pbHandled);
+
+}; 
+
+[
+	uuid(6613C0A6-BC49-4FBA-B086-0286F95E7400),
+	version(1.0),
+	helpstring("CbzDiffPlugin 1.0 Type Library")
+]
+library CbzDiffPlugin
+{
+	importlib("stdole32.tlb");
+	importlib("stdole2.tlb");
+
+	[
+		uuid(2980B00C-CF8C-405D-8FC9-338FCBCF0B48),
+		helpstring("WinMergeScript Class")
+	]
+	coclass WinMergeScript
+	{
+		[default] interface IWinMergeScript;
+	};
+};
