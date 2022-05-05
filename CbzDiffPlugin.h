@@ -113,6 +113,20 @@ EXTERN_C const IID IID_IWinMergeScript;
         virtual /* [helpstring][id][propget] */ HRESULT STDMETHODCALLTYPE get_PluginUnpackedFileExtension( 
             /* [retval][out] */ BSTR *pVal) = 0;
         
+        virtual /* [helpstring][id] */ HRESULT STDMETHODCALLTYPE UnpackBufferA( 
+            /* [in] */ SAFEARRAY * *pBuffer,
+            /* [in] */ INT *pSize,
+            /* [in] */ VARIANT_BOOL *pbChanged,
+            /* [in] */ INT *pSubcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess) = 0;
+        
+        virtual /* [helpstring][id] */ HRESULT STDMETHODCALLTYPE PackBufferA( 
+            /* [in] */ SAFEARRAY * *pBuffer,
+            /* [in] */ INT *pSize,
+            /* [in] */ VARIANT_BOOL *pbChanged,
+            /* [in] */ INT subcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess) = 0;
+        
         virtual /* [helpstring][id] */ HRESULT STDMETHODCALLTYPE UnpackFile( 
             /* [in] */ BSTR fileSrc,
             /* [in] */ BSTR fileDst,
@@ -225,6 +239,24 @@ EXTERN_C const IID IID_IWinMergeScript;
             IWinMergeScript * This,
             /* [retval][out] */ BSTR *pVal);
         
+        DECLSPEC_XFGVIRT(IWinMergeScript, UnpackBufferA)
+        /* [helpstring][id] */ HRESULT ( STDMETHODCALLTYPE *UnpackBufferA )( 
+            IWinMergeScript * This,
+            /* [in] */ SAFEARRAY * *pBuffer,
+            /* [in] */ INT *pSize,
+            /* [in] */ VARIANT_BOOL *pbChanged,
+            /* [in] */ INT *pSubcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess);
+        
+        DECLSPEC_XFGVIRT(IWinMergeScript, PackBufferA)
+        /* [helpstring][id] */ HRESULT ( STDMETHODCALLTYPE *PackBufferA )( 
+            IWinMergeScript * This,
+            /* [in] */ SAFEARRAY * *pBuffer,
+            /* [in] */ INT *pSize,
+            /* [in] */ VARIANT_BOOL *pbChanged,
+            /* [in] */ INT subcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess);
+        
         DECLSPEC_XFGVIRT(IWinMergeScript, UnpackFile)
         /* [helpstring][id] */ HRESULT ( STDMETHODCALLTYPE *UnpackFile )( 
             IWinMergeScript * This,
@@ -302,6 +334,12 @@ EXTERN_C const IID IID_IWinMergeScript;
 #define IWinMergeScript_get_PluginUnpackedFileExtension(This,pVal)	\
     ( (This)->lpVtbl -> get_PluginUnpackedFileExtension(This,pVal) ) 
 
+#define IWinMergeScript_UnpackBufferA(This,pBuffer,pSize,pbChanged,pSubcode,pbSuccess)	\
+    ( (This)->lpVtbl -> UnpackBufferA(This,pBuffer,pSize,pbChanged,pSubcode,pbSuccess) ) 
+
+#define IWinMergeScript_PackBufferA(This,pBuffer,pSize,pbChanged,subcode,pbSuccess)	\
+    ( (This)->lpVtbl -> PackBufferA(This,pBuffer,pSize,pbChanged,subcode,pbSuccess) ) 
+
 #define IWinMergeScript_UnpackFile(This,fileSrc,fileDst,pbChanged,pSubcode,pbSuccess)	\
     ( (This)->lpVtbl -> UnpackFile(This,fileSrc,fileDst,pbChanged,pSubcode,pbSuccess) ) 
 
@@ -348,10 +386,20 @@ unsigned char * __RPC_USER  BSTR_UserMarshal(  unsigned long *, unsigned char *,
 unsigned char * __RPC_USER  BSTR_UserUnmarshal(unsigned long *, unsigned char *, BSTR * ); 
 void                      __RPC_USER  BSTR_UserFree(     unsigned long *, BSTR * ); 
 
+unsigned long             __RPC_USER  LPSAFEARRAY_UserSize(     unsigned long *, unsigned long            , LPSAFEARRAY * ); 
+unsigned char * __RPC_USER  LPSAFEARRAY_UserMarshal(  unsigned long *, unsigned char *, LPSAFEARRAY * ); 
+unsigned char * __RPC_USER  LPSAFEARRAY_UserUnmarshal(unsigned long *, unsigned char *, LPSAFEARRAY * ); 
+void                      __RPC_USER  LPSAFEARRAY_UserFree(     unsigned long *, LPSAFEARRAY * ); 
+
 unsigned long             __RPC_USER  BSTR_UserSize64(     unsigned long *, unsigned long            , BSTR * ); 
 unsigned char * __RPC_USER  BSTR_UserMarshal64(  unsigned long *, unsigned char *, BSTR * ); 
 unsigned char * __RPC_USER  BSTR_UserUnmarshal64(unsigned long *, unsigned char *, BSTR * ); 
 void                      __RPC_USER  BSTR_UserFree64(     unsigned long *, BSTR * ); 
+
+unsigned long             __RPC_USER  LPSAFEARRAY_UserSize64(     unsigned long *, unsigned long            , LPSAFEARRAY * ); 
+unsigned char * __RPC_USER  LPSAFEARRAY_UserMarshal64(  unsigned long *, unsigned char *, LPSAFEARRAY * ); 
+unsigned char * __RPC_USER  LPSAFEARRAY_UserUnmarshal64(unsigned long *, unsigned char *, LPSAFEARRAY * ); 
+void                      __RPC_USER  LPSAFEARRAY_UserFree64(     unsigned long *, LPSAFEARRAY * ); 
 
 /* end of Additional Prototypes */
 

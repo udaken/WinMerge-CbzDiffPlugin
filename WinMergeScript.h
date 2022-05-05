@@ -39,49 +39,64 @@ public:
 
 	// IWinMergeScript
 public:
-	STDMETHOD(ShowSettingsDialog)(/*[out, retval]*/ VARIANT_BOOL* pbHandled) override;
+	IFACEMETHODIMP ShowSettingsDialog(/*[out, retval]*/ VARIANT_BOOL* pbHandled) override;
 
-	STDMETHOD(get_PluginIsAutomatic)(/*[out, retval]*/ VARIANT_BOOL* pVal) override
+	IFACEMETHODIMP get_PluginIsAutomatic(/*[out, retval]*/ VARIANT_BOOL* pVal) override
 	{
 		*pVal = VARIANT_TRUE;
 		return S_OK;
 	}
-	STDMETHOD(get_PluginFileFilters)(/*[out, retval]*/ BSTR* pVal) override
+	IFACEMETHODIMP get_PluginFileFilters(/*[out, retval]*/ BSTR* pVal) override
 	{
 		*pVal = SysAllocString(LR"(\.cbz$;\.cbr$;\.cb7$)");
 		return S_OK;
 	}
-	STDMETHOD(get_PluginDescription)(/*[out, retval]*/ BSTR* pVal) override
+	IFACEMETHODIMP get_PluginDescription(/*[out, retval]*/ BSTR* pVal) override
 	{
 		*pVal = SysAllocString(L"Compare .CBZ/.CBR as Image");
 		return S_OK;
 	}
 
-	STDMETHOD(get_PluginEvent)(/*[out, retval]*/ BSTR* pVal) override
-	{
-		*pVal = SysAllocString(L"FILE_PACK_UNPACK");
-		return S_OK;
-	}
+	IFACEMETHODIMP get_PluginEvent(/*[out, retval]*/ BSTR* pVal) override;
 
-	STDMETHOD(get_PluginUnpackedFileExtension)(/* [retval][out] */ BSTR* pVal) override
+	IFACEMETHODIMP get_PluginUnpackedFileExtension(/* [retval][out] */ BSTR* pVal) override
 	{
 		*pVal = SysAllocString(L".png");
 		return S_OK;
 	}
 
-	STDMETHOD(get_PluginExtendedProperties)(/* [retval][out] */ BSTR* pVal) override
+	IFACEMETHODIMP get_PluginExtendedProperties(/* [retval][out] */ BSTR* pVal) override
 	{
 		*pVal = SysAllocString(L"ProcessType=Content Extraction;FileType=CBZ/CBR/CB7;MenuCaption=CBZ/CBR/CB7");
 		return S_OK;
 	}
-	HRESULT STDMETHODCALLTYPE UnpackFile(
+
+	IFACEMETHODIMP UnpackBufferA(
+		/* [in] */ SAFEARRAY** pBuffer,
+		/* [in] */ INT* pSize,
+		/* [in] */ VARIANT_BOOL* pbChanged,
+		/* [in] */ INT* pSubcode,
+		/* [retval][out] */ VARIANT_BOOL* pbSuccess) override;
+
+	IFACEMETHODIMP PackBufferA(
+		/* [in] */ SAFEARRAY** pBuffer,
+		/* [in] */ INT* pSize,
+		/* [in] */ VARIANT_BOOL* pbChanged,
+		/* [in] */ INT subcode,
+		/* [retval][out] */ VARIANT_BOOL* pbSuccess) override
+	{
+		*pbSuccess = VARIANT_FALSE;
+		return S_OK;
+	}
+
+	IFACEMETHODIMP UnpackFile(
 		/* [in] */ BSTR fileSrc,
 		/* [in] */ BSTR fileDst,
 		VARIANT_BOOL* pbChanged,
 		INT* pSubcode,
 		/* [retval][out] */ VARIANT_BOOL* pbSuccess) override;
 
-	HRESULT STDMETHODCALLTYPE PackFile(
+	IFACEMETHODIMP PackFile(
 		/* [in] */ BSTR fileSrc,
 		/* [in] */ BSTR fileDst,
 		VARIANT_BOOL* pbChanged,

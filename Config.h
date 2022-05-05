@@ -19,6 +19,7 @@ enum class Direction : DWORD
 
 class Config final
 {
+	DWORD m_fileMode{ 0 };
 	DWORD m_forceD2D1{ 0 };
 	DWORD m_scale{ 10 };
 	DWORD m_fileNameOrdering{ static_cast<DWORD>(FileNameOrdering::Natural) };
@@ -26,6 +27,7 @@ class Config final
 
 public:
 
+	static constexpr LPCWSTR key_FileMode{ L"FileMode" };
 	static constexpr LPCWSTR key_Scale{ L"Scale" };
 	static constexpr LPCWSTR key_ForceD2D1{ L"ForceD2D1" };
 	static constexpr LPCWSTR key_FileNameOrdering{ L"FileNameOrdering" };
@@ -38,6 +40,7 @@ public:
 	Config() noexcept {}
 	Config& operator=(Config&&) = default;
 
+	bool fileMode() const { return m_fileMode == 1; }
 	bool forceD2D1() const { return m_forceD2D1 == 1; }
 	FLOAT scale() const { return  scaleInt() / 100.f; }
 	DWORD scaleInt() const { return m_scale; }

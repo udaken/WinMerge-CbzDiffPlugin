@@ -24,18 +24,18 @@ interface IWinMergeScript : IDispatch
 	// PREDIFFING
 	//[id(5), helpstring("method PrediffBufferW")] HRESULT PrediffBufferW([in] BSTR* pText, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [out, retval] VARIANT_BOOL* pbHandled);
 	// BUFFER_PACK_UNPACK
-	//[id(7), helpstring("method UnpackBufferA")] HRESULT UnpackBufferA([in] SAFEARRAY** pBuffer, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [in] INT* pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
-	//[id(8), helpstring("method PackBufferA")] HRESULT PackBufferA([in] SAFEARRAY** pBuffer, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [in] INT subcode, [out, retval] VARIANT_BOOL* pbSuccess);
+	[id(6), helpstring("method UnpackBufferA")] HRESULT UnpackBufferA([in] SAFEARRAY(unsigned char)* pBuffer, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [in] INT* pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
+	[id(7), helpstring("method PackBufferA")] HRESULT PackBufferA([in] SAFEARRAY(unsigned char)* pBuffer, [in] INT* pSize, [in] VARIANT_BOOL* pbChanged, [in] INT subcode, [out, retval] VARIANT_BOOL* pbSuccess);
 	// FILE_PACK_UNPACK
-	[id(5), helpstring("method UnpackFile")] HRESULT UnpackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT * pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
-	[id(7), helpstring("method PackFile")] HRESULT PackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
+	[id(8), helpstring("method UnpackFile")] HRESULT UnpackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT * pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
+	[id(9), helpstring("method PackFile")] HRESULT PackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
 	// FILE_FOLDER_PACK_UNPACK
 	//[id(11), helpstring("method IsFolder")] HRESULT IsFolder([in] BSTR file, [out, retval] VARIANT_BOOL* pbSuccess);
 	//[id(12), helpstring("method UnpackFolder")] HRESULT UnpackFolder([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL* pbChanged, INT* pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
 	//[id(13), helpstring("method PackFolder")] HRESULT PackFolder([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL* pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
 
 
-	[id(6), helpstring("method ShowSettingsDialog")] HRESULT ShowSettingsDialog([out, retval] VARIANT_BOOL* pbHandled);
+	[id(100), helpstring("method ShowSettingsDialog")] HRESULT ShowSettingsDialog([out, retval] VARIANT_BOOL* pbHandled);
 
 }; 
 

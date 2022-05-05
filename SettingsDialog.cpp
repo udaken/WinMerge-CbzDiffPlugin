@@ -59,6 +59,7 @@ std::unique_ptr<Config> Config::Load()
 	DWORD cbData{ sizeof(DWORD) };
 	SHGetValue(HKEY_CURRENT_USER, KeyName(), key_Scale, &type, &config.m_scale, &cbData);
 	config.m_scale = std::clamp(config.m_scale, 1UL, 100UL);
+	SHGetValue(HKEY_CURRENT_USER, KeyName(), key_FileMode, &type, &config.m_fileMode, &cbData);
 	SHGetValue(HKEY_CURRENT_USER, KeyName(), key_ForceD2D1, &type, &config.m_forceD2D1, &cbData);
 	SHGetValue(HKEY_CURRENT_USER, KeyName(), key_FileNameOrdering, &type, &config.m_fileNameOrdering, &cbData);
 

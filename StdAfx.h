@@ -23,6 +23,7 @@ extern CComModule _Module;
 
 #include <atlcom.h>
 #include <atlstr.h>
+#include <atlsafe.h>
 
 #include <wincodec.h>
 #include <d3d11_1.h>
@@ -31,6 +32,8 @@ extern CComModule _Module;
 #include <propvarutil.h>
 #include "7zip/CPP/7zip/Archive/IArchive.h"
 #include "7zip/CPP/7zip/ICoder.h"
+
+#include <algorithm>
 
 //{{AFX_INSERT_LOCATION}}
 // Microsoft Visual C++ will insert additional declarations immediately before the previous line.
