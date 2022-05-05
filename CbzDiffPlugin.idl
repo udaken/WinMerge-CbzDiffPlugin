@@ -30,9 +30,9 @@ interface IWinMergeScript : IDispatch
 	[id(8), helpstring("method UnpackFile")] HRESULT UnpackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT * pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
 	[id(9), helpstring("method PackFile")] HRESULT PackFile([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL * pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL * pbSuccess);
 	// FILE_FOLDER_PACK_UNPACK
-	//[id(11), helpstring("method IsFolder")] HRESULT IsFolder([in] BSTR file, [out, retval] VARIANT_BOOL* pbSuccess);
-	//[id(12), helpstring("method UnpackFolder")] HRESULT UnpackFolder([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL* pbChanged, INT* pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
-	//[id(13), helpstring("method PackFolder")] HRESULT PackFolder([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL* pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
+	[id(11), helpstring("method IsFolder")] HRESULT IsFolder([in] BSTR file, [out, retval] VARIANT_BOOL* pbSuccess);
+	[id(12), helpstring("method UnpackFolder")] HRESULT UnpackFolder([in] BSTR fileSrc, [in] BSTR folderDst, VARIANT_BOOL* pbChanged, INT* pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
+	[id(13), helpstring("method PackFolder")] HRESULT PackFolder([in] BSTR fileSrc, [in] BSTR fileDst, VARIANT_BOOL* pbChanged, INT pSubcode, [out, retval] VARIANT_BOOL* pbSuccess);
 
 
 	[id(100), helpstring("method ShowSettingsDialog")] HRESULT ShowSettingsDialog([out, retval] VARIANT_BOOL* pbHandled);

@@ -59,11 +59,7 @@ public:
 
 	IFACEMETHODIMP get_PluginEvent(/*[out, retval]*/ BSTR* pVal) override;
 
-	IFACEMETHODIMP get_PluginUnpackedFileExtension(/* [retval][out] */ BSTR* pVal) override
-	{
-		*pVal = SysAllocString(L".png");
-		return S_OK;
-	}
+	IFACEMETHODIMP get_PluginUnpackedFileExtension(/* [retval][out] */ BSTR* pVal) override;
 
 	IFACEMETHODIMP get_PluginExtendedProperties(/* [retval][out] */ BSTR* pVal) override
 	{
@@ -106,6 +102,33 @@ public:
 		*pbSuccess = VARIANT_FALSE;
 		return S_OK;
 	}
+
+	IFACEMETHODIMP IsFolder(
+		/* [in] */ BSTR file,
+		/* [retval][out] */ VARIANT_BOOL* pbSuccess) override
+	{
+		*pbSuccess = VARIANT_TRUE; // always true
+		return S_OK;
+	}
+
+	IFACEMETHODIMP UnpackFolder(
+		/* [in] */ BSTR fileSrc,
+		/* [in] */ BSTR folderDst,
+		VARIANT_BOOL* pbChanged,
+		INT* pSubcode,
+		/* [retval][out] */ VARIANT_BOOL* pbSuccess) override;
+
+	IFACEMETHODIMP PackFolder(
+		/* [in] */ BSTR fileSrc,
+		/* [in] */ BSTR fileDst,
+		VARIANT_BOOL* pbChanged,
+		INT pSubcode,
+		/* [retval][out] */ VARIANT_BOOL* pbSuccess) override
+	{
+		*pbSuccess = VARIANT_FALSE;
+		return S_OK;
+	}
+
 };
 
 extern INT_PTR CALLBACK SettingDlgProc(HWND hWnd, UINT uiMsg, WPARAM wParam, LPARAM lParam) noexcept;

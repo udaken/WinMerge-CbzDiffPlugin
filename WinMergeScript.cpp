@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <assert.h>
+#include <strsafe.h>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d2d1.lib")
@@ -31,6 +32,8 @@ EXTERN_C const GUID FAR CLSID_CFormatZip;
 EXTERN_C const GUID FAR CLSID_CFormatRar;
 
 const REFWICPixelFormatGUID InternalWICFormat = GUID_WICPixelFormat32bppPBGRA;
+
+static const auto containerGuidList = { GUID_ContainerFormatTiff, GUID_ContainerFormatPng, GUID_ContainerFormatJpeg, };
 
 class PropVarinat final : public PROPVARIANT
 {
@@ -66,7 +69,7 @@ public:
 		return new(std::nothrow) StreamWrapper(s);
 	}
 
-	STDMETHODIMP QueryInterface(REFIID riid, void** ppvObject) override
+	IFACEMETHODIMP QueryInterface(REFIID riid, void** ppvObject) override
 	{
 		static const QITAB qit[] =
 		{
@@ -75,11 +78,11 @@ public:
 		};
 		return QISearch(this, qit, riid, ppvObject);
 	}
-	STDMETHODIMP_(ULONG) AddRef(void) override
+	IFACEMETHODIMP_(ULONG) AddRef(void) override
 	{
 		return InterlockedIncrement(&m_Ref);
 	}
-	STDMETHODIMP_(ULONG) Release(void) override
+	IFACEMETHODIMP_(ULONG) Release(void) override
 	{
 		ULONG count = InterlockedDecrement(&m_Ref);
 		if (count == 0)
@@ -93,14 +96,33 @@ public:
 	{
 		return baseStream->Write(data, static_cast<ULONG>(size), reinterpret_cast<ULONG*>(processedSize));
 	}
-
 };
 
-inline HRESULT WriteToStream(IWICImagingFactory* factory, IWICBitmapSource* srcImage, IStream* piStream)
+inline HRESULT GetExteinsionFromEncoder(IWICBitmapEncoder* pngEncoder, std::wstring& ext)
 {
-	HRESULT hr;
+	HRESULT hr = E_FAIL;
+	CComPtr< IWICBitmapEncoderInfo> pEncodedrInfo;
+	hr = pngEncoder->GetEncoderInfo(&pEncodedrInfo);
+	UINT length{};
+	hr = pEncodedrInfo->GetFileExtensions(0, nullptr, &length);
 
-	for (auto& container : { GUID_ContainerFormatPng, GUID_ContainerFormatJpeg })
+	ext.resize(static_cast<size_t>(length - 1), L'\0');
+
+	hr = pEncodedrInfo->GetFileExtensions(length, ext.data(), &length);
+
+	std::string::size_type pos = 0;
+	if ((pos = ext.find(',', pos)) != std::string::npos) {
+		ext.resize(pos);
+	}
+
+	return hr;
+}
+
+inline HRESULT WriteToStream(IWICImagingFactory* factory, IWICBitmapSource* srcImage, IStream* piStream, std::wstring& extentionName)
+{
+	HRESULT hr = E_FAIL;
+
+	for (auto& container : containerGuidList)
 	{
 		CComPtr<IWICBitmapEncoder> pngEncoder;
 		hr = factory->CreateEncoder(container, nullptr, &pngEncoder);
@@ -125,7 +147,10 @@ inline HRESULT WriteToStream(IWICImagingFactory* factory, IWICBitmapSource* srcI
 		if (FAILED(hr)) continue;
 
 		if (SUCCEEDED(hr))
+		{
+			hr = GetExteinsionFromEncoder(pngEncoder, extentionName);
 			return hr;
+		}
 	}
 
 	return hr;
@@ -154,10 +179,10 @@ inline LPCWSTR GetPixelFormatName(WICPixelFormatGUID guid)
 	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppPBGRA))     return L"GUID_WICPixelFormat32bppPBGRA";
 	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppGrayFloat)) return L"GUID_WICPixelFormat32bppGrayFloat";
 
-	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppRGBA))     return L"GUID_WICPixelFormat32bppRGBA";
-	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppPRGBA))    return L"GUID_WICPixelFormat32bppPRGBA";
-	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat48bppRGB))      return L"GUID_WICPixelFormat48bppRGB";
-	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat48bppBGR))      return L"GUID_WICPixelFormat48bppBGR";
+	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppRGBA))      return L"GUID_WICPixelFormat32bppRGBA";
+	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppPRGBA))     return L"GUID_WICPixelFormat32bppPRGBA";
+	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat48bppRGB))       return L"GUID_WICPixelFormat48bppRGB";
+	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat48bppBGR))       return L"GUID_WICPixelFormat48bppBGR";
 
 	return L"";
 }
@@ -165,9 +190,12 @@ inline LPCWSTR GetPixelFormatName(WICPixelFormatGUID guid)
 
 inline D2D1_PIXEL_FORMAT WicPixelFormatToD2D1(WICPixelFormatGUID guid)
 {
-	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppPRGBA)) return D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
-	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppBGR)) return D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE);
-	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppPBGRA)) return D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
+	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppPRGBA))
+		return D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
+	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppBGR))
+		return D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE);
+	if (InlineIsEqualGUID(guid, GUID_WICPixelFormat32bppPBGRA))
+		return D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
 	return D2D1::PixelFormat();
 }
 
@@ -199,7 +227,8 @@ inline HRESULT ScaleImage(IWICImagingFactory* factory, IWICBitmapSource* srcImag
 	CComPtr<IWICFormatConverter> converter;
 	hr = factory->CreateFormatConverter(&converter);
 	CHECK_return(hr);
-	hr = converter->Initialize(scaler, InternalWICFormat, WICBitmapDitherTypeNone, nullptr, 0.f, WICBitmapPaletteTypeMedianCut);
+	hr = converter->Initialize(scaler,
+		InternalWICFormat, WICBitmapDitherTypeNone, nullptr, 0.f, WICBitmapPaletteTypeMedianCut);
 	CHECK_return(hr);
 
 	hr = converter.QueryInterface(result);
@@ -275,6 +304,21 @@ inline HRESULT Load7zDll(HMODULE& h7z)
 	return S_OK;
 }
 
+inline HRESULT SafeArrayGetCount(_In_ SAFEARRAY* psa, _Out_ LONG* plLbound, _In_ UINT nDim = 0)
+{
+	HRESULT hr;
+	LONG lUbound;
+	hr = SafeArrayGetUBound(psa, nDim, &lUbound);
+	CHECK_return(hr);
+	LONG lLbound;
+	hr = SafeArrayGetLBound(psa, nDim, &lLbound);
+	CHECK_return(hr);
+
+	*plLbound = (lUbound - lLbound);
+
+	return hr;
+}
+
 class CbzToImage final : IArchiveExtractCallback
 {
 	typedef UINT32(WINAPI* CreateObjectFunc)(REFGUID clsID, REFIID interfaceID, void** outObject);
@@ -287,7 +331,6 @@ class CbzToImage final : IArchiveExtractCallback
 
 	CComPtr<IInArchive> m_pInArchive;
 	CComPtr< IWICImagingFactory> m_pWicFactory;
-	CComPtr<IWICBitmap> m_canvas;
 
 	HMODULE h7z{};
 	CreateObjectFunc CreateObject{};
@@ -340,10 +383,10 @@ public:
 	}
 	static REFGUID GetFormatGUIDFromSig(const void* sig, size_t size)
 	{
-		if (memcmp(sig, "PK\03\04", sizeof(4)) == 0) return CLSID_CFormatZip;
-		if (memcmp(sig, "Rar!", sizeof(4)) == 0) return CLSID_CFormatRar;
+		if (memcmp(sig, "PK\03\04", (min(4, size))) == 0) return CLSID_CFormatZip;
+		if (memcmp(sig, "Rar!", (min(4, size))) == 0) return CLSID_CFormatRar;
 		constexpr BYTE magic7z[] = { '7','z', 0xBC, 0xAF, 0x27, 0x1C };
-		if (memcmp(sig, magic7z, sizeof(magic7z)) == 0)  return CLSID_CFormat7z;
+		if (memcmp(sig, magic7z, min(sizeof(magic7z), size)) == 0)  return CLSID_CFormat7z;
 		return CLSID_NULL;
 	}
 
@@ -361,7 +404,14 @@ public:
 		hr = piStream->InitializeFromFilename(dest, GENERIC_WRITE);
 		CHECK_return(hr);
 
-		hr = Process(inputStream, GetFormatGUID(path), piStream);
+		std::wstring extension;
+		hr = Process(inputStream, GetFormatGUID(path), piStream, extension);
+		piStream.Release();
+
+		WCHAR newName[MAX_PATH]{};
+		StringCchCopy(newName, ARRAYSIZE(newName), dest);
+		PathRenameExtension(newName, extension.c_str());
+		MoveFile(dest, newName);
 
 		return hr;
 	}
@@ -375,7 +425,10 @@ public:
 		void* sig;
 		hr = SafeArrayAccessData(pBuffer, &sig);
 		CHECK_return(hr);
-		auto guid = GetFormatGUIDFromSig(sig, 4);
+		LONG count;
+		hr = SafeArrayGetCount(pBuffer, &count);
+		CHECK_return(hr);
+		auto guid = GetFormatGUIDFromSig(sig, count);
 		hr = SafeArrayUnaccessData(pBuffer);
 
 		CComPtr<InSafeArrayStream> inputStream;
@@ -387,7 +440,8 @@ public:
 		hr = SafeArrayStream::From(nullptr, &piStream);
 		CHECK_return(hr);
 
-		hr = Process(inputStream, guid, piStream);
+		std::wstring extension;
+		hr = Process(inputStream, guid, piStream, extension);
 		CHECK_return(hr);
 
 		ULONG size;
@@ -409,7 +463,7 @@ public:
 
 private:
 
-	HRESULT Process(IInStream* inputStream, REFGUID guid, IStream* outputStream)
+	HRESULT Process(IInStream* inputStream, REFGUID guid, IStream* outputStream, std::wstring& extension)
 	{
 		if (guid == IID_NULL)
 			return ERROR_INVALID_DATA;
@@ -446,7 +500,6 @@ private:
 				m_items.emplace_back(index, name);
 			}
 		}
-
 		SortItems();
 
 		std::vector<UInt32> indics;
@@ -459,9 +512,12 @@ private:
 		hr = pInArchive->Extract(indics.data(), static_cast<UInt32>(indics.size()), FALSE, this);
 		CHECK_return(hr);
 
+		pInArchive.Release();
+
 		UINT width, height;
 		m_canvas->GetSize(&width, &height);
-		hr = WriteToStream(m_pWicFactory, m_canvas, outputStream);
+
+		hr = WriteToStream(m_pWicFactory, m_canvas, outputStream, extension);
 		CHECK_return(hr);
 		return hr;
 	}
@@ -485,7 +541,7 @@ private:
 			ordinalCompareFunc);
 	}
 
-	STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override
+	IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override
 	{
 		static const QITAB qit[] =
 		{
@@ -495,26 +551,26 @@ private:
 		return QISearch(this, qit, riid, ppv);
 	}
 
-	STDMETHODIMP_(ULONG) AddRef(void) override
+	IFACEMETHODIMP_(ULONG) AddRef(void) override
 	{
 		// On stack only
 		return 0;
 	}
 
-	STDMETHODIMP_(ULONG) Release(void) override
+	IFACEMETHODIMP_(ULONG) Release(void) override
 	{
 		// On stack only
 		return 0;
 	}
 
 	//IArchiveExtractCallback
-	STDMETHODIMP SetTotal(UInt64 totalBytes) override
+	IFACEMETHODIMP SetTotal(UInt64 totalBytes) override
 	{
 		return S_OK;
 	}
 
 	// IArchiveExtractCallback
-	STDMETHODIMP SetCompleted(const UInt64* completeValue) override
+	IFACEMETHODIMP SetCompleted(const UInt64* completeValue) override
 	{
 		if (completeValue == nullptr)
 			return E_INVALIDARG;
@@ -560,7 +616,7 @@ private:
 	CComPtr<IStream> m_lastExtractImageSream;
 
 	// IArchiveExtractCallback
-	STDMETHODIMP GetStream(UInt32 index, ISequentialOutStream** outStream, Int32 askExtractMode) override
+	IFACEMETHODIMP GetStream(UInt32 index, ISequentialOutStream** outStream, Int32 askExtractMode) override
 	{
 		auto askMode{ static_cast<decltype(NArchive::NExtract::NAskMode::kExtract)>(askExtractMode) };
 		if (askMode != NArchive::NExtract::NAskMode::kExtract)
@@ -569,6 +625,7 @@ private:
 		}
 		CComPtr<IStream> stream;
 		HRESULT hr = CreateStreamOnHGlobal(nullptr, TRUE, &stream);
+		CHECK_return(hr);
 		*outStream = StreamWrapper::Create(stream);
 		if (*outStream == nullptr)
 			hr = E_OUTOFMEMORY;
@@ -577,20 +634,20 @@ private:
 		return hr;
 	}
 	// IArchiveExtractCallback
-	STDMETHODIMP PrepareOperation(Int32 askExtractMode) override
+	IFACEMETHODIMP PrepareOperation(Int32 askExtractMode) override
 	{
 		auto askMode{ static_cast<decltype(NArchive::NExtract::NAskMode::kExtract)>(askExtractMode) };
 		return S_OK;
 	}
 	// IArchiveExtractCallback
-	STDMETHODIMP SetOperationResult(Int32 opRes) override
+	IFACEMETHODIMP SetOperationResult(Int32 opRes) override
 	{
 		auto operationResult{ static_cast<decltype(NArchive::NExtract::NOperationResult::kOK)>(opRes) };
 		return S_OK;
 	}
 
-
 	CComPtr< ID2D1Factory> m_pD2D1Factory;
+	CComPtr<IWICBitmap> m_canvas;
 	HRESULT ConcatImage(IWICBitmapSource* srcImage2)
 	{
 		HRESULT hr;
@@ -615,7 +672,7 @@ private:
 		CHECK_return(hr);
 
 		UINT newheight = height + height2;
-		if (newheight > 32767)
+		if (newheight > m_config.imageLimit())
 		{
 			return S_FALSE;
 		}
@@ -646,7 +703,8 @@ private:
 			CComPtr<IWICFormatConverter> converter;
 			hr = m_pWicFactory->CreateFormatConverter(&converter);
 			CHECK_return(hr);
-			hr = converter->Initialize(srcImage2, InternalWICFormat, WICBitmapDitherTypeNone, nullptr, 0.f, WICBitmapPaletteTypeMedianCut);
+			hr = converter->Initialize(srcImage2,
+				InternalWICFormat, WICBitmapDitherTypeNone, nullptr, 0.f, WICBitmapPaletteTypeMedianCut);
 
 			CComPtr<ID2D1Bitmap> pD2dBitmap2;
 			hr = pDC->CreateBitmapFromWicBitmap(converter, &pD2dBitmap2);
@@ -657,17 +715,17 @@ private:
 			CHECK_return(hr);
 			pD2dScale->SetInput(0, pD2dBitmap2);
 			CHECK_return(hr);
-			hr = pD2dScale->SetValue(D2D1_SCALE_PROP_SCALE, D2D1::Vector2F(m_config.scale(), m_config.scale()));
+			hr = pD2dScale->SetValue(D2D1_SCALE_PROP_SCALE,
+				D2D1::Vector2F(m_config.scale(), m_config.scale()));
 			CHECK_return(hr);
-			hr = pD2dScale->SetValue(D2D1_SCALE_PROP_INTERPOLATION_MODE, D2D1_SCALE_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC);
+			hr = pD2dScale->SetValue(D2D1_SCALE_PROP_INTERPOLATION_MODE,
+				D2D1_SCALE_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC);
 			CHECK_return(hr);
 
 			pDC->BeginDraw();
-			pDC->Clear();
+			pDC->Clear(D2D1::ColorF(m_config.backgroundColor()));
 			pDC->DrawImage(pD2dBitmap1);
-
-			pDC->DrawImage(pD2dScale,
-				D2D1::Point2F(0, height));
+			pDC->DrawImage(pD2dScale, D2D1::Point2F(0, height));
 			hr = pDC->EndDraw();
 		}
 		else
@@ -682,7 +740,7 @@ private:
 
 
 			pRT->BeginDraw();
-			pRT->Clear();
+			pRT->Clear(D2D1::ColorF(m_config.backgroundColor()));
 			pRT->DrawBitmap(pD2dBitmap1, nullptr, 1.0F, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
 			pRT->DrawBitmap(pD2dBitmap2, D2D1::RectF(0, height, width2, height + height2),
 				1.0F, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
@@ -695,14 +753,40 @@ private:
 };
 
 
-STDMETHODIMP CWinMergeScript::get_PluginEvent(/*[out, retval]*/ BSTR* pVal)
+IFACEMETHODIMP CWinMergeScript::get_PluginUnpackedFileExtension(/* [retval][out] */ BSTR* pVal)
 {
-	auto config = Config::Load();
-	*pVal = SysAllocString(config->fileMode() ? L"FILE_PACK_UNPACK" : L"BUFFER_PACK_UNPACK");
+	HRESULT hr;
+	CComPtr< IWICImagingFactory> factory;
+	hr = factory.CoCreateInstance(CLSID_WICImagingFactory);
+	CHECK_return(hr);
+
+	auto& container{ *std::begin(containerGuidList) };
+
+	CComPtr<IWICBitmapEncoder> pngEncoder;
+	hr = factory->CreateEncoder(container, nullptr, &pngEncoder);
+	CHECK_return(hr);
+
+	std::wstring ext;
+	hr = GetExteinsionFromEncoder(pngEncoder, ext);
+	CHECK_return(hr);
+
+	*pVal = SysAllocString(ext.c_str());
 	return S_OK;
 }
 
-STDMETHODIMP CWinMergeScript::UnpackFile(
+IFACEMETHODIMP CWinMergeScript::get_PluginEvent(/*[out, retval]*/ BSTR* pVal)
+{
+	auto config = Config::Load();
+	*pVal = SysAllocString(
+		config->pluginMode() == PluginMode::File ? L"FILE_PACK_UNPACK" :
+		config->pluginMode() == PluginMode::Folder ? L"FILE_FOLDER_PACK_UNPACK" :
+		config->pluginMode() == PluginMode::Buffer ? L"BUFFER_PACK_UNPACK" :
+		L""
+	);
+	return S_OK;
+}
+
+IFACEMETHODIMP CWinMergeScript::UnpackFile(
 	/* [in] */ BSTR fileSrc,
 	/* [in] */ BSTR fileDst,
 	VARIANT_BOOL* pbChanged,
@@ -729,7 +813,7 @@ STDMETHODIMP CWinMergeScript::UnpackFile(
 	return S_OK;
 }
 
-STDMETHODIMP CWinMergeScript::UnpackBufferA(
+IFACEMETHODIMP CWinMergeScript::UnpackBufferA(
 	/* [in] */ SAFEARRAY** pBuffer,
 	/* [in] */ INT* pSize,
 	/* [in] */ VARIANT_BOOL* pbChanged,
@@ -755,6 +839,38 @@ STDMETHODIMP CWinMergeScript::UnpackBufferA(
 	*pbSuccess = VARIANT_TRUE;
 	return S_OK;
 }
+
+IFACEMETHODIMP CWinMergeScript::UnpackFolder(
+	/* [in] */ BSTR fileSrc,
+	/* [in] */ BSTR folderDst,
+	VARIANT_BOOL* pbChanged,
+	INT* pSubcode,
+	/* [retval][out] */ VARIANT_BOOL* pbSuccess)
+{
+	if (fileSrc == nullptr || folderDst == nullptr)
+		return E_INVALIDARG;
+
+	*pbSuccess = VARIANT_FALSE;
+	auto config = Config::Load();
+	CbzToImage sevenzip{ *config };
+
+	HRESULT hr = sevenzip.Init();
+	if (FAILED(hr))
+		return hr;
+
+	WCHAR fileDest[MAX_PATH]{};
+	PathCombine(fileDest, folderDst, L"image.png");
+
+	hr = sevenzip.ProcessFile(fileSrc, fileDest);
+	if (FAILED(hr))
+		return hr;
+
+	*pbChanged = VARIANT_TRUE;
+	*pSubcode = 0;
+	*pbSuccess = VARIANT_TRUE;
+	return S_OK;
+}
+
 
 IFACEMETHODIMP CWinMergeScript::ShowSettingsDialog(VARIANT_BOOL* pbHandled)
 {

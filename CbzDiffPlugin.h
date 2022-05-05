@@ -141,6 +141,24 @@ EXTERN_C const IID IID_IWinMergeScript;
             INT pSubcode,
             /* [retval][out] */ VARIANT_BOOL *pbSuccess) = 0;
         
+        virtual /* [helpstring][id] */ HRESULT STDMETHODCALLTYPE IsFolder( 
+            /* [in] */ BSTR file,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess) = 0;
+        
+        virtual /* [helpstring][id] */ HRESULT STDMETHODCALLTYPE UnpackFolder( 
+            /* [in] */ BSTR fileSrc,
+            /* [in] */ BSTR folderDst,
+            VARIANT_BOOL *pbChanged,
+            INT *pSubcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess) = 0;
+        
+        virtual /* [helpstring][id] */ HRESULT STDMETHODCALLTYPE PackFolder( 
+            /* [in] */ BSTR fileSrc,
+            /* [in] */ BSTR fileDst,
+            VARIANT_BOOL *pbChanged,
+            INT pSubcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess) = 0;
+        
         virtual /* [helpstring][id] */ HRESULT STDMETHODCALLTYPE ShowSettingsDialog( 
             /* [retval][out] */ VARIANT_BOOL *pbHandled) = 0;
         
@@ -275,6 +293,30 @@ EXTERN_C const IID IID_IWinMergeScript;
             INT pSubcode,
             /* [retval][out] */ VARIANT_BOOL *pbSuccess);
         
+        DECLSPEC_XFGVIRT(IWinMergeScript, IsFolder)
+        /* [helpstring][id] */ HRESULT ( STDMETHODCALLTYPE *IsFolder )( 
+            IWinMergeScript * This,
+            /* [in] */ BSTR file,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess);
+        
+        DECLSPEC_XFGVIRT(IWinMergeScript, UnpackFolder)
+        /* [helpstring][id] */ HRESULT ( STDMETHODCALLTYPE *UnpackFolder )( 
+            IWinMergeScript * This,
+            /* [in] */ BSTR fileSrc,
+            /* [in] */ BSTR folderDst,
+            VARIANT_BOOL *pbChanged,
+            INT *pSubcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess);
+        
+        DECLSPEC_XFGVIRT(IWinMergeScript, PackFolder)
+        /* [helpstring][id] */ HRESULT ( STDMETHODCALLTYPE *PackFolder )( 
+            IWinMergeScript * This,
+            /* [in] */ BSTR fileSrc,
+            /* [in] */ BSTR fileDst,
+            VARIANT_BOOL *pbChanged,
+            INT pSubcode,
+            /* [retval][out] */ VARIANT_BOOL *pbSuccess);
+        
         DECLSPEC_XFGVIRT(IWinMergeScript, ShowSettingsDialog)
         /* [helpstring][id] */ HRESULT ( STDMETHODCALLTYPE *ShowSettingsDialog )( 
             IWinMergeScript * This,
@@ -345,6 +387,15 @@ EXTERN_C const IID IID_IWinMergeScript;
 
 #define IWinMergeScript_PackFile(This,fileSrc,fileDst,pbChanged,pSubcode,pbSuccess)	\
     ( (This)->lpVtbl -> PackFile(This,fileSrc,fileDst,pbChanged,pSubcode,pbSuccess) ) 
+
+#define IWinMergeScript_IsFolder(This,file,pbSuccess)	\
+    ( (This)->lpVtbl -> IsFolder(This,file,pbSuccess) ) 
+
+#define IWinMergeScript_UnpackFolder(This,fileSrc,folderDst,pbChanged,pSubcode,pbSuccess)	\
+    ( (This)->lpVtbl -> UnpackFolder(This,fileSrc,folderDst,pbChanged,pSubcode,pbSuccess) ) 
+
+#define IWinMergeScript_PackFolder(This,fileSrc,fileDst,pbChanged,pSubcode,pbSuccess)	\
+    ( (This)->lpVtbl -> PackFolder(This,fileSrc,fileDst,pbChanged,pSubcode,pbSuccess) ) 
 
 #define IWinMergeScript_ShowSettingsDialog(This,pbHandled)	\
     ( (This)->lpVtbl -> ShowSettingsDialog(This,pbHandled) ) 

@@ -174,10 +174,10 @@ public:
 	}
 };
 
-__interface ISafeArrayStream : IStream
+DECLARE_INTERFACE_(ISafeArrayStream, IStream)
 {
-	virtual HRESULT GetSize(ULONG* pSize) PURE;
-	virtual HRESULT Detach(LPSAFEARRAY* ppsa) PURE;
+	virtual HRESULT GetSize(ULONG * pSize) PURE;
+	virtual HRESULT Detach(LPSAFEARRAY * ppsa) PURE;
 };
 
 class SafeArrayStream final :
