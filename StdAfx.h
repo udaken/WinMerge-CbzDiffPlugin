@@ -17,21 +17,19 @@
 //#define _ATL_NO_AUTOMATIC_NAMESPACE
 
 #include <atlbase.h>
-//You may derive a class from CComModule and use it if you want to override
-//something, but do not change the name of _Module
+// You may derive a class from CComModule and use it if you want to override
+// something, but do not change the name of _Module
 extern CComModule _Module;
 
 #include <atlcom.h>
-#include <atlstr.h>
 #include <atlsafe.h>
+#include <atlstr.h>
 
-#include <wincodec.h>
+#include <d2d1_2.h>
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
-#include <d2d1_2.h>
 #include <propvarutil.h>
-#include "7zip/CPP/7zip/Archive/IArchive.h"
-#include "7zip/CPP/7zip/ICoder.h"
+#include <wincodec.h>
 
 #include <algorithm>
 
