@@ -1,6 +1,6 @@
+#include "stdafx.h"
 #include "CbzDiffPlugin.h"
 #include "resource.h"
-#include "stdafx.h"
 #include <initguid.h>
 
 #include "CbzDiffPlugin_i.c"

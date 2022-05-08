@@ -3,16 +3,16 @@
 #pragma warning(disable : 28251)
 #include "CbzDiffPlugin.h"
 #include "Config.h"
-#include "InFileStream.h"
+#include "Streams.h"
 #include "WinMergeScript.h"
 #include "resource.h"
+#include "PdfToImage.h"
 
 #include <algorithm>
 #include <assert.h>
 #include <oleauto.h>
 #include <string>
 #include <string_view>
-#include <strsafe.h>
 #include <vector>
 
 #include "7zip/CPP/7zip/Archive/IArchive.h"
@@ -57,7 +57,7 @@ const REFWICPixelFormatGUID InternalWICFormat = GUID_WICPixelFormat32bppPBGRA;
 
 static std::tuple<REFGUID, std::vector<PROPBAG2>, std::vector<VARIANT>> containerGuidList[] = {
     {GUID_ContainerFormatTiff,
-     {{.pstrName = const_cast<LPOLESTR>(L"")}},
+     {{.pstrName = const_cast<LPOLESTR>(L"TiffCompressionMethod")}},
      {
          {.vt = VT_UI1, .bVal = WICTiffCompressionLZW},
      }},
@@ -126,6 +126,12 @@ class StreamWrapper final : public ISequentialOutStream
     }
 };
 
+inline bool IsPdfFile(const BYTE *pv, size_t length)
+{
+    constexpr BYTE magic[] = {'%', 'P', 'D', 'F'};
+    return memcmp(magic, pv, std::min(sizeof(magic), length)) == 0;
+}
+
 inline HRESULT GetExteinsionFromEncoder(IWICBitmapEncoder *pngEncoder, std::wstring &ext)
 {
     HRESULT hr = E_FAIL;
@@ -147,8 +153,8 @@ inline HRESULT GetExteinsionFromEncoder(IWICBitmapEncoder *pngEncoder, std::wstr
     return hr;
 }
 
-inline HRESULT WriteToStream(IWICImagingFactory *factory, IWICBitmapSource *srcImage, IStream *piStream,
-                             std::wstring &extentionName)
+HRESULT WriteToStream(IWICImagingFactory *factory, IWICBitmapSource *srcImage, IStream *piStream,
+                      std::wstring &extentionName)
 {
     HRESULT hr = E_FAIL;
 
@@ -274,8 +280,7 @@ inline HRESULT ScaledSize(IWICBitmapSource *srcImage, float scale, UINT &width, 
     return hr;
 }
 
-inline HRESULT ScaleImage(IWICImagingFactory *factory, IWICBitmapSource *srcImage, float scale,
-                          IWICBitmapSource **result)
+inline HRESULT ScaleImage(IWICImagingFactory *factory, IWICBitmapSource *srcImage, float scale, IWICBitmap **result)
 {
     CComPtr<IWICBitmapScaler> scaler;
     HRESULT hr;
@@ -295,7 +300,83 @@ inline HRESULT ScaleImage(IWICImagingFactory *factory, IWICBitmapSource *srcImag
                                WICBitmapPaletteTypeMedianCut);
     CHECK_return(hr);
 
-    hr = converter.QueryInterface(result);
+    hr = factory->CreateBitmapFromSource(converter, WICBitmapCacheOnLoad, result);
+    CHECK_return(hr);
+    return hr;
+}
+
+HRESULT ConcatPages(IWICImagingFactory *factory, const Config &config, std::vector<winrt::com_ptr<IWICBitmap>> pages,
+                    IWICBitmap **target)
+{
+    HRESULT hr;
+    UINT newheight{}, newwidth{};
+    for (auto &img : pages)
+    {
+        UINT width{}, height{};
+        hr = img->GetSize(&width, &height);
+        CHECK_return(hr);
+
+        if ((newheight + height) > config.imageLimit())
+        {
+            break;
+        }
+
+        newheight += height;
+        newwidth = std::max(newwidth, width);
+
+        WICPixelFormatGUID format{};
+        hr = img->GetPixelFormat(&format);
+        CHECK_return(hr);
+        auto formatName = GetPixelFormatName(format);
+    }
+
+    hr = factory->CreateBitmap(newwidth, newheight, InternalWICFormat, WICBitmapCacheOnDemand, target);
+    CHECK_return(hr);
+
+    CComPtr<ID2D1Factory> pD2D1Factory;
+    hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_MULTI_THREADED, &pD2D1Factory);
+    CHECK_return(hr);
+
+    CComPtr<ID2D1RenderTarget> pRT;
+    auto rtp = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_SOFTWARE);
+    hr = pD2D1Factory->CreateWicBitmapRenderTarget(*target, rtp, &pRT);
+    CHECK_return(hr);
+
+    CComPtr<ID2D1DeviceContext> pDC;
+    hr = pRT.QueryInterface(&pDC);
+
+    pRT->BeginDraw();
+    pRT->Clear(D2D1::ColorF(config.backgroundColor()));
+    UINT offset{};
+    for (auto &img : pages)
+    {
+        UINT width{}, height{};
+        hr = img->GetSize(&width, &height);
+        CHECK_return(hr);
+
+        if ((offset + height) > config.imageLimit())
+        {
+            break;
+        }
+
+        CComPtr<ID2D1Bitmap> pD2dBitmap1;
+        hr = pRT->CreateBitmapFromWicBitmap(img.get(), &pD2dBitmap1);
+        CHECK_return(hr);
+
+        if (pDC && not config.forceD2D1())
+        { // Direct2D1.1
+
+            pDC->DrawImage(pD2dBitmap1, D2D1::Point2F(0, offset));
+        }
+        else
+        { // Direct2D1
+            pRT->DrawBitmap(pD2dBitmap1, D2D1::RectF(0, offset, width, offset + height), 1.0F,
+                            D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+        }
+        offset += height;
+    }
+
+    hr = pRT->EndDraw();
     CHECK_return(hr);
     return hr;
 }
@@ -394,45 +475,24 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
         CComBSTR name;
     };
 
-    CComPtr<IInArchive> m_pInArchive;
     CComPtr<IWICImagingFactory> m_pWicFactory;
 
-    HMODULE h7z{};
-    CreateObjectFunc CreateObject{};
-    std::vector<ItemInfo> m_items;
-    std::wstring m_supportedExt;
+    std::vector<winrt::com_ptr<IWICBitmap>> m_pages;
 
-    Config &m_config;
-
-    ULONG64 m_totalWidth{};
-    UINT m_maxWidth{};
-    ULONG64 m_totalHeight{};
-    UINT m_maxHeight{};
+    Config const &m_config;
 
   public:
     CbzToImage(const CbzToImage &) = delete;
     CbzToImage &operator=(const CbzToImage &) = delete;
 
-    explicit CbzToImage(Config &config) : m_config(config)
+    explicit CbzToImage(Config const &config) : m_config(config)
     {
     }
     HRESULT Init()
     {
         HRESULT hr;
-        hr = Load7zDll(h7z);
-        CHECK_return(hr);
-
-        CreateObject = (CreateObjectFunc)GetProcAddress(h7z, "CreateObject");
-        if (CreateObject == nullptr)
-            return HRESULT_FROM_WIN32(GetLastError());
 
         hr = m_pWicFactory.CoCreateInstance(CLSID_WICImagingFactory);
-        CHECK_return(hr);
-
-        hr = GetSupportedExtentions(m_pWicFactory, m_supportedExt);
-        CHECK_return(hr);
-
-        hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_MULTI_THREADED, &m_pD2D1Factory);
         CHECK_return(hr);
 
         return hr;
@@ -450,12 +510,14 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
     }
     static REFGUID GetFormatGUIDFromSig(const void *sig, size_t size)
     {
-        if (memcmp(sig, "PK\03\04", (min(4, size))) == 0)
+        constexpr BYTE magicZip[] = {'P', 'K', '\03', '\04'};
+        if (memcmp(sig, "PK\03\04", (std::min(sizeof(magicZip), size))) == 0)
             return CLSID_CFormatZip;
-        if (memcmp(sig, "Rar!", (min(4, size))) == 0)
+        constexpr BYTE magicRar[] = {'R', 'a', 'r', '!'};
+        if (memcmp(sig, magicRar, (std::min(sizeof(magicRar), size))) == 0)
             return CLSID_CFormatRar;
         constexpr BYTE magic7z[] = {'7', 'z', 0xBC, 0xAF, 0x27, 0x1C};
-        if (memcmp(sig, magic7z, min(sizeof(magic7z), size)) == 0)
+        if (memcmp(sig, magic7z, std::min(sizeof(magic7z), size)) == 0)
             return CLSID_CFormat7z;
         return CLSID_NULL;
     }
@@ -468,20 +530,18 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
         hr = InFileStream::OpenPath(path, &inputStream);
         CHECK_return(hr);
 
-        CComPtr<IWICStream> piStream;
-        hr = m_pWicFactory->CreateStream(&piStream);
-        CHECK_return(hr);
-        hr = piStream->InitializeFromFilename(dest, GENERIC_WRITE);
-        CHECK_return(hr);
+        CComPtr<IStream> outStream;
+        hr = SHCreateStreamOnFileEx(dest, STGM_WRITE, FILE_ATTRIBUTE_NORMAL, TRUE, nullptr, &outStream);
 
         std::wstring extension;
-        hr = Process(inputStream, GetFormatGUID(path), piStream, extension);
-        piStream.Release();
+        hr = Process(inputStream, GetFormatGUID(path), outStream, extension);
+        outStream.Release();
 
         WCHAR newName[MAX_PATH]{};
         StringCchCopy(newName, ARRAYSIZE(newName), dest);
         PathRenameExtension(newName, extension.c_str());
-        MoveFile(dest, newName);
+        if (not MoveFile(dest, newName))
+            return HRESULT_FROM_WIN32(GetLastError());
 
         return hr;
     }
@@ -522,23 +582,29 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
         return hr;
     }
 
-    ~CbzToImage()
-    {
-        if (h7z)
-        {
-            FreeLibrary(h7z);
-            h7z = nullptr;
-        }
-    }
-
   private:
     HRESULT Process(IInStream *inputStream, REFGUID guid, IStream *outputStream, std::wstring &extension)
     {
+        HRESULT hr;
         if (guid == IID_NULL)
             return ERROR_INVALID_DATA;
 
+        std::wstring supportedExt;
+
+        hr = GetSupportedExtentions(m_pWicFactory, supportedExt);
+        CHECK_return(hr);
+
+        HMODULE h7z{};
+        hr = Load7zDll(h7z);
+        CHECK_return(hr);
+        auto deleter{[](HMODULE p) { FreeLibrary(p); }};
+        auto _ = std::unique_ptr<decltype(std::remove_pointer_t<HMODULE>()), decltype(deleter)>(h7z);
+
+        auto CreateObject = (CreateObjectFunc)GetProcAddress(h7z, "CreateObject");
+        if (CreateObject == nullptr)
+            return HRESULT_FROM_WIN32(GetLastError());
+
         CComPtr<IInArchive> pInArchive;
-        HRESULT hr;
         hr = CreateObject(guid, IID_IInArchive, IID_PPV_ARGS_Helper(&pInArchive));
         CHECK_return(hr);
 
@@ -550,12 +616,13 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
         if (vSolid.boolVal)
             return ERROR_INVALID_DATA;
 
-        UInt32 itemsCount{};
-        hr = pInArchive->GetNumberOfItems(&itemsCount);
+        UInt32 itemCount{};
+        hr = pInArchive->GetNumberOfItems(&itemCount);
         CHECK_return(hr);
-        m_items.reserve(itemsCount);
+        std::vector<ItemInfo> items;
+        items.reserve(itemCount);
 
-        for (UInt32 index = 0; index < itemsCount; ++index)
+        for (UInt32 index = 0; index < itemCount; ++index)
         {
             PropVarinat vPath{};
             hr = pInArchive->GetProperty(index, kpidPath, &vPath);
@@ -564,16 +631,16 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
             hr = PropVariantToBSTR(vPath, &name);
             CHECK_return(hr);
 
-            if (S_OK == PathMatchSpecExW(name, m_supportedExt.c_str(), PMSF_MULTIPLE))
+            if (S_OK == PathMatchSpecExW(name, supportedExt.c_str(), PMSF_MULTIPLE))
             {
-                m_items.emplace_back(index, name);
+                items.emplace_back(index, name);
             }
         }
-        SortItems();
+        SortItems(items);
 
         std::vector<UInt32> indics;
-        indics.reserve(static_cast<size_t>(itemsCount));
-        for (auto &i : m_items)
+        indics.reserve(static_cast<size_t>(itemCount));
+        for (auto &i : items)
         {
             indics.push_back(i.index);
         }
@@ -582,16 +649,16 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
         CHECK_return(hr);
 
         pInArchive.Release();
+        CComPtr<IWICBitmap> target;
+        hr = ConcatPages(m_pWicFactory, m_config, m_pages, &target);
+        m_pages.clear();
 
-        UINT width, height;
-        m_canvas->GetSize(&width, &height);
-
-        hr = WriteToStream(m_pWicFactory, m_canvas, outputStream, extension);
+        hr = WriteToStream(m_pWicFactory, target, outputStream, extension);
         CHECK_return(hr);
         return hr;
     }
 
-    void SortItems()
+    void SortItems(std::vector<ItemInfo> &items)
     {
         auto naturalCompareFunc = [](const ItemInfo &a, const ItemInfo &b) -> bool {
             return StrCmpLogicalW(a.name, b.name) < 0;
@@ -604,7 +671,7 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
         };
 
         // sort
-        std::sort(m_items.begin(), m_items.end(),
+        std::sort(items.begin(), items.end(),
                   (m_config.fileNameOrdering() == FileNameOrdering::Natural)   ? naturalCompareFunc
                   : (m_config.fileNameOrdering() == FileNameOrdering::Culture) ? cultureCompareFunc
                                                                                : ordinalCompareFunc);
@@ -690,16 +757,9 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
             hr = pDecoder->GetFrame(0, &pFrame);
             CHECK_return(hr);
 
-            UINT width{}, height{};
-            hr = pFrame->GetSize(&width, &height);
-            CHECK_return(hr);
-
-            m_totalHeight += height;
-            m_totalWidth += width;
-            m_maxHeight = max(m_maxHeight, height);
-            m_maxWidth = max(m_maxWidth, width);
-
-            hr = ConcatImage(pFrame);
+            CComPtr<IWICBitmap> page;
+            hr = ScaleImage(m_pWicFactory, pFrame, m_config.scale(), &page);
+            m_pages.emplace_back(page, winrt::take_ownership_from_abi_t{});
 
             m_lastExtractImageSream = nullptr;
             return hr;
@@ -710,105 +770,6 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
     IFACEMETHODIMP CryptoGetTextPassword2(Int32 *passwordIsDefined, BSTR *password) override
     {
         return E_NOTIMPL;
-    }
-
-    CComPtr<ID2D1Factory> m_pD2D1Factory;
-    CComPtr<IWICBitmap> m_canvas;
-    HRESULT ConcatImage(IWICBitmapSource *srcImage2)
-    {
-        HRESULT hr;
-        if (not m_canvas)
-        {
-            CComPtr<IWICBitmapSource> pScaledImage;
-            hr = ScaleImage(m_pWicFactory, srcImage2, m_config.scale(), &pScaledImage);
-            CHECK_return(hr);
-            hr = m_pWicFactory->CreateBitmapFromSource(pScaledImage, WICBitmapCacheOnLoad, &m_canvas);
-            return hr;
-        }
-        UINT width{}, height{};
-        hr = m_canvas->GetSize(&width, &height);
-        CHECK_return(hr);
-
-        WICPixelFormatGUID format{};
-        hr = m_canvas->GetPixelFormat(&format);
-        auto formatName = GetPixelFormatName(format);
-
-        UINT width2{}, height2{};
-        hr = ScaledSize(srcImage2, m_config.scale(), width2, height2);
-        CHECK_return(hr);
-
-        UINT newheight = height + height2;
-        if (newheight > m_config.imageLimit())
-        {
-            return S_FALSE;
-        }
-
-        CComPtr<IWICBitmap> target;
-        hr = m_pWicFactory->CreateBitmap(max(width, width2), newheight, InternalWICFormat, WICBitmapCacheOnDemand,
-                                         &target);
-        CHECK_return(hr);
-
-        CComPtr<ID2D1RenderTarget> pRT;
-        auto rtp = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_SOFTWARE);
-        hr = m_pD2D1Factory->CreateWicBitmapRenderTarget(target, rtp, &pRT);
-        CHECK_return(hr);
-
-        CComPtr<ID2D1Bitmap> pD2dBitmap1;
-        hr = pRT->CreateBitmapFromWicBitmap(m_canvas, &pD2dBitmap1);
-        CHECK_return(hr);
-
-        CComPtr<ID2D1DeviceContext> pDC;
-        hr = pRT.QueryInterface(&pDC);
-        if (SUCCEEDED(hr) && not m_config.forceD2D1())
-
-        { // Direct2D1.1
-            CComPtr<IWICFormatConverter> converter;
-            hr = m_pWicFactory->CreateFormatConverter(&converter);
-            CHECK_return(hr);
-            hr = converter->Initialize(srcImage2, InternalWICFormat, WICBitmapDitherTypeNone, nullptr, 0.f,
-                                       WICBitmapPaletteTypeMedianCut);
-
-            CComPtr<ID2D1Bitmap> pD2dBitmap2;
-            hr = pDC->CreateBitmapFromWicBitmap(converter, &pD2dBitmap2);
-            CHECK_return(hr);
-
-            CComPtr<ID2D1Effect> pD2dScale;
-            hr = pDC->CreateEffect(CLSID_D2D1Scale, &pD2dScale);
-            CHECK_return(hr);
-            pD2dScale->SetInput(0, pD2dBitmap2);
-            CHECK_return(hr);
-            hr = pD2dScale->SetValue(D2D1_SCALE_PROP_SCALE, D2D1::Vector2F(m_config.scale(), m_config.scale()));
-            CHECK_return(hr);
-            hr = pD2dScale->SetValue(D2D1_SCALE_PROP_INTERPOLATION_MODE,
-                                     D2D1_SCALE_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC);
-            CHECK_return(hr);
-
-            pDC->BeginDraw();
-            pDC->Clear(D2D1::ColorF(m_config.backgroundColor()));
-            pDC->DrawImage(pD2dBitmap1);
-            pDC->DrawImage(pD2dScale, D2D1::Point2F(0, height));
-            hr = pDC->EndDraw();
-        }
-        else
-        { // Direct2D1
-            CComPtr<IWICBitmapSource> pScaledImage;
-            hr = ScaleImage(m_pWicFactory, srcImage2, m_config.scale(), &pScaledImage);
-            CHECK_return(hr);
-
-            CComPtr<ID2D1Bitmap> pD2dBitmap2;
-            hr = pRT->CreateBitmapFromWicBitmap(pScaledImage, &pD2dBitmap2);
-            CHECK_return(hr);
-
-            pRT->BeginDraw();
-            pRT->Clear(D2D1::ColorF(m_config.backgroundColor()));
-            pRT->DrawBitmap(pD2dBitmap1, nullptr, 1.0F, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
-            pRT->DrawBitmap(pD2dBitmap2, D2D1::RectF(0, height, width2, height + height2), 1.0F,
-                            D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
-            hr = pRT->EndDraw();
-        }
-        m_canvas = target;
-
-        return hr;
     }
 };
 
@@ -854,15 +815,26 @@ IFACEMETHODIMP CWinMergeScript::UnpackFile(
 
     *pbSuccess = VARIANT_FALSE;
     auto config = Config::Load();
-    CbzToImage sevenzip{*config};
 
-    HRESULT hr = sevenzip.Init();
-    if (FAILED(hr))
-        return hr;
+    HRESULT hr;
+    if (PathMatchSpec(fileSrc, L"*.pdf"))
+    {
+        PdfToImage pdf{*config};
+        hr = pdf.ProcessFile(fileSrc, fileDst);
+        if (FAILED(hr))
+            return hr;
+    }
+    else
+    {
+        CbzToImage sevenzip{*config};
+        hr = sevenzip.Init();
+        if (FAILED(hr))
+            return hr;
 
-    hr = sevenzip.ProcessFile(fileSrc, fileDst);
-    if (FAILED(hr))
-        return hr;
+        hr = sevenzip.ProcessFile(fileSrc, fileDst);
+        if (FAILED(hr))
+            return hr;
+    }
     *pbChanged = VARIANT_TRUE;
     *pSubcode = 0;
     *pbSuccess = VARIANT_TRUE;
@@ -881,8 +853,8 @@ IFACEMETHODIMP CWinMergeScript::UnpackBufferA(
 
     *pbSuccess = VARIANT_FALSE;
     auto config = Config::Load();
-    CbzToImage sevenzip{*config};
 
+    CbzToImage sevenzip{*config};
     HRESULT hr = sevenzip.Init();
     if (FAILED(hr))
         return hr;
@@ -906,18 +878,29 @@ IFACEMETHODIMP CWinMergeScript::UnpackFolder(
 
     *pbSuccess = VARIANT_FALSE;
     auto config = Config::Load();
-    CbzToImage sevenzip{*config};
-
-    HRESULT hr = sevenzip.Init();
-    if (FAILED(hr))
-        return hr;
 
     WCHAR fileDest[MAX_PATH]{};
     PathCombine(fileDest, folderDst, L"image.png");
 
-    hr = sevenzip.ProcessFile(fileSrc, fileDest);
-    if (FAILED(hr))
-        return hr;
+    HRESULT hr;
+    if (PathMatchSpec(fileSrc, L"*.pdf"))
+    {
+        PdfToImage pdf{*config};
+        hr = pdf.ProcessFile(fileSrc, fileDest);
+        if (FAILED(hr))
+            return hr;
+    }
+    else
+    {
+        CbzToImage sevenzip{*config};
+        hr = sevenzip.Init();
+        if (FAILED(hr))
+            return hr;
+
+        hr = sevenzip.ProcessFile(fileSrc, fileDest);
+        if (FAILED(hr))
+            return hr;
+    }
 
     *pbChanged = VARIANT_TRUE;
     *pSubcode = 0;

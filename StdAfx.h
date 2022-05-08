@@ -11,10 +11,17 @@
 
 #define STRICT
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0600
+#define _WIN32_WINNT _WIN32_WINNT_WIN8
 #endif
 #define _ATL_APARTMENT_THREADED
 //#define _ATL_NO_AUTOMATIC_NAMESPACE
+
+#define WIN32_LEAN_AND_MEAN
+#define WINRT_LEAN_AND_MEAN
+#define NOMINMAX
+
+#define STRICT_TYPED_ITEMIDS
+#define STRICT_CONST
 
 #include <atlbase.h>
 // You may derive a class from CComModule and use it if you want to override
@@ -30,8 +37,14 @@ extern CComModule _Module;
 #include <dxgi1_2.h>
 #include <propvarutil.h>
 #include <wincodec.h>
+#include <strsafe.h>
 
 #include <algorithm>
+
+#include <unknwn.h>
+
+#include "winrt/base.h"
+#include "winrt/Windows.Storage.Streams.h"
 
 //{{AFX_INSERT_LOCATION}}
 // Microsoft Visual C++ will insert additional declarations immediately before the previous line.

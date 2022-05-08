@@ -129,7 +129,7 @@ class InSafeArrayStream final : public IInStream, public IStreamGetSize
 
     IFACEMETHODIMP Read(void *data, UInt32 size, UInt32 *processedSize) override
     {
-        auto readCount = min(size, m_baseStram.GetCount() - m_offset);
+        auto readCount = std::min(static_cast<ULONG>(size), m_baseStram.GetCount() - m_offset);
         if (readCount == 0)
             return S_FALSE;
 
@@ -252,7 +252,7 @@ class SafeArrayStream final : public ISafeArrayStream
             return E_INVALIDARG;
         }
         m_offset = static_cast<ULONG>(std::clamp(newPos, 0LL, static_cast<Int64>(m_safeArray.GetCount())));
-        
+
         if (plibNewPosition)
             plibNewPosition->QuadPart = m_offset;
 
@@ -277,7 +277,8 @@ class SafeArrayStream final : public ISafeArrayStream
         /* [annotation] */
         _Out_opt_ ULARGE_INTEGER *pcbWritten) override
     {
-        auto readCount = static_cast<ULONG>(min(cb.QuadPart, m_safeArray.GetCount() - m_offset));
+        auto readCount =
+            static_cast<ULONG>(std::min(cb.QuadPart, static_cast<ULONGLONG>(m_safeArray.GetCount() - m_offset)));
 
         ULONG written{};
         HRESULT hr = pstm->Write(&m_safeArray[(LONG)m_offset], readCount, &written);
@@ -353,7 +354,7 @@ class SafeArrayStream final : public ISafeArrayStream
         /* [annotation] */
         _Out_opt_ ULONG *pcbRead) override
     {
-        auto readCount = min(cb, m_safeArray.GetCount() - m_offset);
+        auto readCount = std::min(cb, m_safeArray.GetCount() - m_offset);
         memcpy(pv, &m_safeArray[(LONG)m_offset], readCount);
         m_offset += readCount;
         if (pcbRead)
