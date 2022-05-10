@@ -49,12 +49,12 @@ class ATL_NO_VTABLE CWinMergeScript
     }
     IFACEMETHODIMP get_PluginFileFilters(/*[out, retval]*/ BSTR *pVal) override
     {
-        *pVal = SysAllocString(LR"(\.pdf$;\.cbz$;\.cbr$;\.cb7$)");
+        *pVal = SysAllocString(LR"(\.cbz$;\.cbr$;\.cb7$)");
         return S_OK;
     }
     IFACEMETHODIMP get_PluginDescription(/*[out, retval]*/ BSTR *pVal) override
     {
-        *pVal = SysAllocString(L"Compare .PDF/.CBZ/.CBR/.CB7 as Image");
+        *pVal = SysAllocString(L"Compare .CBZ/.CBR/.CB7 as Image");
         return S_OK;
     }
 
@@ -64,7 +64,7 @@ class ATL_NO_VTABLE CWinMergeScript
 
     IFACEMETHODIMP get_PluginExtendedProperties(/* [retval][out] */ BSTR *pVal) override
     {
-        *pVal = SysAllocString(L"ProcessType=Content Extraction;FileType=PDF/CBZ/CBR/CB7;MenuCaption=PDF/CBZ/CBR/CB7");
+        *pVal = SysAllocString(L"ProcessType=Content Extraction;FileType=CBZ/CBR/CB7;MenuCaption=CBZ/CBR/CB7");
         return S_OK;
     }
 

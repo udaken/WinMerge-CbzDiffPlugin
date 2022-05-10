@@ -6,7 +6,6 @@
 #include "Streams.h"
 #include "WinMergeScript.h"
 #include "resource.h"
-#include "PdfToImage.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -125,12 +124,6 @@ class StreamWrapper final : public ISequentialOutStream
         return baseStream->Write(data, static_cast<ULONG>(size), reinterpret_cast<ULONG *>(processedSize));
     }
 };
-
-inline bool IsPdfFile(const BYTE *pv, size_t length)
-{
-    constexpr BYTE magic[] = {'%', 'P', 'D', 'F'};
-    return memcmp(magic, pv, std::min(sizeof(magic), length)) == 0;
-}
 
 inline HRESULT GetExteinsionFromEncoder(IWICBitmapEncoder *pngEncoder, std::wstring &ext)
 {
@@ -305,7 +298,7 @@ inline HRESULT ScaleImage(IWICImagingFactory *factory, IWICBitmapSource *srcImag
     return hr;
 }
 
-HRESULT ConcatPages(IWICImagingFactory *factory, const Config &config, std::vector<winrt::com_ptr<IWICBitmap>> pages,
+HRESULT ConcatPages(IWICImagingFactory *factory, const Config &config, std::vector<CComPtr<IWICBitmap>> pages,
                     IWICBitmap **target)
 {
     HRESULT hr;
@@ -360,7 +353,7 @@ HRESULT ConcatPages(IWICImagingFactory *factory, const Config &config, std::vect
         }
 
         CComPtr<ID2D1Bitmap> pD2dBitmap1;
-        hr = pRT->CreateBitmapFromWicBitmap(img.get(), &pD2dBitmap1);
+        hr = pRT->CreateBitmapFromWicBitmap(img, &pD2dBitmap1);
         CHECK_return(hr);
 
         if (pDC && not config.forceD2D1())
@@ -477,7 +470,7 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
 
     CComPtr<IWICImagingFactory> m_pWicFactory;
 
-    std::vector<winrt::com_ptr<IWICBitmap>> m_pages;
+    std::vector<CComPtr<IWICBitmap>> m_pages;
 
     Config const &m_config;
 
@@ -669,12 +662,13 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
         auto cultureCompareFunc = [](const ItemInfo &a, const ItemInfo &b) -> bool {
             return StrCmpICW(a.name, b.name) < 0;
         };
-
+#ifndef __INTELLISENSE__ // workaround
         // sort
         std::sort(items.begin(), items.end(),
                   (m_config.fileNameOrdering() == FileNameOrdering::Natural)   ? naturalCompareFunc
                   : (m_config.fileNameOrdering() == FileNameOrdering::Culture) ? cultureCompareFunc
                                                                                : ordinalCompareFunc);
+#endif
     }
 
     IFACEMETHODIMP QueryInterface(REFIID riid, void **ppv) override
@@ -759,7 +753,7 @@ class CbzToImage final : IArchiveExtractCallback, ICryptoGetTextPassword2
 
             CComPtr<IWICBitmap> page;
             hr = ScaleImage(m_pWicFactory, pFrame, m_config.scale(), &page);
-            m_pages.emplace_back(page, winrt::take_ownership_from_abi_t{});
+            m_pages.emplace_back(page);
 
             m_lastExtractImageSream = nullptr;
             return hr;
@@ -817,24 +811,15 @@ IFACEMETHODIMP CWinMergeScript::UnpackFile(
     auto config = Config::Load();
 
     HRESULT hr;
-    if (PathMatchSpec(fileSrc, L"*.pdf"))
-    {
-        PdfToImage pdf{*config};
-        hr = pdf.ProcessFile(fileSrc, fileDst);
-        if (FAILED(hr))
-            return hr;
-    }
-    else
-    {
-        CbzToImage sevenzip{*config};
-        hr = sevenzip.Init();
-        if (FAILED(hr))
-            return hr;
+    CbzToImage sevenzip{*config};
+    hr = sevenzip.Init();
+    if (FAILED(hr))
+        return hr;
 
-        hr = sevenzip.ProcessFile(fileSrc, fileDst);
-        if (FAILED(hr))
-            return hr;
-    }
+    hr = sevenzip.ProcessFile(fileSrc, fileDst);
+    if (FAILED(hr))
+        return hr;
+
     *pbChanged = VARIANT_TRUE;
     *pSubcode = 0;
     *pbSuccess = VARIANT_TRUE;
@@ -873,39 +858,9 @@ IFACEMETHODIMP CWinMergeScript::UnpackFolder(
     /* [in] */ BSTR folderDst, VARIANT_BOOL *pbChanged, INT *pSubcode,
     /* [retval][out] */ VARIANT_BOOL *pbSuccess)
 {
-    if (fileSrc == nullptr || folderDst == nullptr)
-        return E_INVALIDARG;
-
-    *pbSuccess = VARIANT_FALSE;
-    auto config = Config::Load();
-
     WCHAR fileDest[MAX_PATH]{};
     PathCombine(fileDest, folderDst, L"image.png");
-
-    HRESULT hr;
-    if (PathMatchSpec(fileSrc, L"*.pdf"))
-    {
-        PdfToImage pdf{*config};
-        hr = pdf.ProcessFile(fileSrc, fileDest);
-        if (FAILED(hr))
-            return hr;
-    }
-    else
-    {
-        CbzToImage sevenzip{*config};
-        hr = sevenzip.Init();
-        if (FAILED(hr))
-            return hr;
-
-        hr = sevenzip.ProcessFile(fileSrc, fileDest);
-        if (FAILED(hr))
-            return hr;
-    }
-
-    *pbChanged = VARIANT_TRUE;
-    *pSubcode = 0;
-    *pbSuccess = VARIANT_TRUE;
-    return S_OK;
+    return UnpackFile(fileSrc, fileDest, pbChanged, pSubcode, pbChanged);
 }
 
 IFACEMETHODIMP CWinMergeScript::ShowSettingsDialog(VARIANT_BOOL *pbHandled)

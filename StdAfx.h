@@ -11,13 +11,12 @@
 
 #define STRICT
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT _WIN32_WINNT_WIN8
+#define _WIN32_WINNT _WIN32_WINNT_VISTA
 #endif
 #define _ATL_APARTMENT_THREADED
 //#define _ATL_NO_AUTOMATIC_NAMESPACE
 
 #define WIN32_LEAN_AND_MEAN
-#define WINRT_LEAN_AND_MEAN
 #define NOMINMAX
 
 #define STRICT_TYPED_ITEMIDS
@@ -40,11 +39,6 @@ extern CComModule _Module;
 #include <strsafe.h>
 
 #include <algorithm>
-
-#include <unknwn.h>
-
-#include "winrt/base.h"
-#include "winrt/Windows.Storage.Streams.h"
 
 //{{AFX_INSERT_LOCATION}}
 // Microsoft Visual C++ will insert additional declarations immediately before the previous line.
